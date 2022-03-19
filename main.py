@@ -3,6 +3,7 @@ import datetime, requests, re, shutil, PIL, os
 from pdf2image import convert_from_path
 LAST_DAY_FILE = 'last-date.txt'
 DATE_FORMAT = '%Y/%m/%d'
+os.environ["PATH"] = os.environ["PATH"] + ";./bin"
 def clean(pdf_list):
     for i in pdf_list:
         os.remove(i[0])
