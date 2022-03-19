@@ -25,3 +25,8 @@ pyinstaller -i icon.ico -c --onefile main.py
 
 ## Spec file:
 is not used
+
+## Usage:
+1. Unzip file
+2. In text file "last-date.txt" insert last date printed, using same format in file.
+3. Run main.exe, and all crosswords will be stored in folder with name print, and date.
