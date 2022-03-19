@@ -20,7 +20,7 @@ Change code in grapheme to point to bin:
 
 ## Pyinstaller
 ```shell
-pyinstaller -c --onefile main.py
+pyinstaller -i icon.ico -c --onefile main.py
 ```
 
 ## Spec file:
