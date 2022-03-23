@@ -3,6 +3,7 @@ import datetime, requests, re, shutil, PIL, os
 from pdf2image import convert_from_path
 LAST_DAY_FILE = 'last-date.txt'
 DATE_FORMAT = '%Y/%m/%d'
+MAX_COUNT = 30
 def clean(pdf_list):
     for i in pdf_list:
         os.remove(i[0])
@@ -51,11 +52,11 @@ def pull_pdfs_starting(day):
     i = 0
     pdf_links = []
     with alive_bar((today - day_date_obj).days) as bar:
-        while current_index < today:
+        while current_index < today and i < MAX_COUNT:
             today_str = current_index.strftime(DATE_FORMAT)
             text = requests.get("https://addiyar.com/pdf/"+today_str).text
             pdf_link = re.search("(?P<url>https?://[^\s]+.pdf)", text).group("url")
-            i+=1
+            i += 1
             current_index = day_date_obj + datetime.timedelta(days=i)
             pdf_links.append([pdf_link, today_str])
 #            yield
