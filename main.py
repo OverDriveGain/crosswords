@@ -4,6 +4,7 @@ from pdf2image import convert_from_path
 LAST_DAY_FILE = 'last-date.txt'
 DATE_FORMAT = '%Y/%m/%d'
 MAX_COUNT = 30
+os.environ["PATH"] = os.environ["PATH"] + ";./bin"
 def clean(pdf_list):
     for i in pdf_list:
         os.remove(i[0])
@@ -48,7 +49,6 @@ def pull_pdfs_starting(day):
     today = datetime.datetime.today()
     day_date_obj = datetime.datetime.strptime(day, DATE_FORMAT)
     current_index = day_date_obj
-    # >>> today.strftime('%Y/%m/%d')
     i = 0
     pdf_links = []
     with alive_bar((today - day_date_obj).days) as bar:
