@@ -1,6 +1,7 @@
 from alive_progress import alive_bar
 import datetime, requests, re, shutil, PIL, os, yaml
 from pdf2image import convert_from_path
+
 CONFIG_FILE = 'config.yaml'
 with open(CONFIG_FILE, "r") as stream:
     try:
@@ -74,14 +75,22 @@ def pull_pdfs_starting(day):
     print("Resizing, cropping, and extracting images from pdf files")
     today_str = today.strftime(DATE_FORMAT).replace('/', '-')
     print_dir=create_print_dir(today_str)
+    images = []
+
     with alive_bar(len(file_names)) as bar:
         for i in file_names:
             pages = convert_from_path(i[0], 500, size = (2038, 3426))
             out = pages[10].crop((1026, 302, 1950, 1888))
             out = out.resize((1445, 2480), PIL.Image.ANTIALIAS)
-            out.save(print_dir + '/' + i[1].replace('/', '-') + '.png', 'JPEG')
-            write_last_day(i[1])
+#            out.save(print_dir + '/' + i[1].replace('/', '-') + '.png', 'JPEG')
             bar()
+            images.append(out)
+            write_last_day(i[1])
+    # imagelist is the list with all image filenames
+    images[0].save(
+        print_dir + '/out.pdf', "PDF", resolution=100.0, save_all=True, append_images=images[1:]
+    )
+
     clean(file_names)
     return True
 
