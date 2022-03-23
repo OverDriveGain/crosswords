@@ -1,9 +1,16 @@
 from alive_progress import alive_bar
-import datetime, requests, re, shutil, PIL, os
+import datetime, requests, re, shutil, PIL, os, yaml
 from pdf2image import convert_from_path
 LAST_DAY_FILE = 'last-date.txt'
+CONFIG_FILE = 'config.yaml'
+with open(CONFIG_FILE, "r") as stream:
+    try:
+        cfg = yaml.safe_load(stream)
+    except yaml.YAMLError as exc:
+        print(exc)
+
 DATE_FORMAT = '%Y/%m/%d'
-MAX_COUNT = 30
+MAX_COUNT = cfg['max-count']
 os.environ["PATH"] = os.environ["PATH"] + ";./bin"
 def clean(pdf_list):
     for i in pdf_list:
@@ -51,7 +58,7 @@ def pull_pdfs_starting(day):
     current_index = day_date_obj
     i = 0
     pdf_links = []
-    with alive_bar((today - day_date_obj).days) as bar:
+    with alive_bar(min((today - day_date_obj).days, MAX_COUNT)) as bar:
         while current_index < today and i < MAX_COUNT:
             today_str = current_index.strftime(DATE_FORMAT)
             text = requests.get("https://addiyar.com/pdf/"+today_str).text
