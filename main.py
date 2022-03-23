@@ -1,14 +1,13 @@
 from alive_progress import alive_bar
 import datetime, requests, re, shutil, PIL, os, yaml
 from pdf2image import convert_from_path
-LAST_DAY_FILE = 'last-date.txt'
 CONFIG_FILE = 'config.yaml'
 with open(CONFIG_FILE, "r") as stream:
     try:
         cfg = yaml.safe_load(stream)
     except yaml.YAMLError as exc:
         print(exc)
-
+LAST_DATE_KEY = 'last-date'
 DATE_FORMAT = '%Y/%m/%d'
 MAX_COUNT = cfg['max-count']
 os.environ["PATH"] = os.environ["PATH"] + ";./bin"
@@ -27,15 +26,12 @@ def create_print_dir(date):
     return out_dir
 
 def read_last_day():
-    date = datetime.datetime.today()
-    date = date.strftime(DATE_FORMAT)
-    with open(LAST_DAY_FILE, 'r') as outfile:
-        date = outfile.read()
-    return date
+    return cfg[LAST_DATE_KEY]
 
 def write_last_day(date):
-    with open(LAST_DAY_FILE, 'w') as outfile:
-        outfile.write(date)
+    cfg[LAST_DATE_KEY] = date
+    with open(CONFIG_FILE, 'w') as outfile:
+        yaml.dump(cfg, outfile)
     return True
 
 def download_file(url):
