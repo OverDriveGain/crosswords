@@ -1,5 +1,5 @@
 from alive_progress import alive_bar
-import datetime, requests, re, shutil, PIL, os, yaml
+import datetime, requests, re, shutil, PIL, os, yaml, logging
 from pdf2image import convert_from_path
 
 CONFIG_FILE = 'config.yaml'
@@ -8,6 +8,10 @@ with open(CONFIG_FILE, "r") as stream:
         cfg = yaml.safe_load(stream)
     except yaml.YAMLError as exc:
         print(exc)
+level = logging.INFO
+if 'verbose' in cfg:
+    level = logging.DEBUG
+logging.basicConfig(level=level)
 LAST_DATE_KEY = 'last-date'
 DATE_FORMAT = '%Y/%m/%d'
 MAX_COUNT = cfg['max-count']
@@ -58,35 +62,41 @@ def pull_pdfs_starting(day):
     with alive_bar(min((today - day_date_obj).days, MAX_COUNT)) as bar:
         while current_index < today and i < MAX_COUNT:
             today_str = current_index.strftime(DATE_FORMAT)
-            text = requests.get("https://addiyar.com/pdf/"+today_str).text
-            pdf_link = re.search("(?P<url>https?://[^\s]+.pdf)", text).group("url")
+            url = "https://addiyar.com/pdf/"+today_str
+            logging.debug('Fetching: ' + str(url))
+            text = requests.get(url).text
+            try:
+                logging.debug('Searching for pdf in HTML')
+                pdf_link = re.search("(?P<url>https?://[^\s]+.pdf)", text).group("url")
+                pdf_links.append([pdf_link, today_str])
+            except:
+                logging.warn('No pdf found in link: ' + url + ', is it a weekend day?')
             i += 1
             current_index = day_date_obj + datetime.timedelta(days=i)
-            pdf_links.append([pdf_link, today_str])
-#            yield
             bar()
-    print("fetched this pdf links count: " + str(len(pdf_links)))
-    print("Downloading pdfs")
+    logging.info("fetched this pdf links count: " + str(len(pdf_links)))
+    logging.info("Downloading pdfs")
     file_names = []
     with alive_bar(len(pdf_links)) as bar:
         for i in pdf_links:
             file_names.append([download_file(i[0]), i[1]])
             bar()
-    print("Resizing, cropping, and extracting images from pdf files")
+    logging.info("Resizing, cropping, and extracting images from pdf files")
     today_str = today.strftime(DATE_FORMAT).replace('/', '-')
     print_dir=create_print_dir(today_str)
     images = []
 
     with alive_bar(len(file_names)) as bar:
         for i in file_names:
+            logging.debug('Convert PDF to image')
             pages = convert_from_path(i[0], 500, size = (2038, 3426))
             out = pages[10].crop((1026, 302, 1950, 1888))
             out = out.resize((1445, 2480), PIL.Image.ANTIALIAS)
-#            out.save(print_dir + '/' + i[1].replace('/', '-') + '.png', 'JPEG')
             bar()
             images.append(out)
             write_last_day(i[1])
     # imagelist is the list with all image filenames
+    logging.info('Creating one PDF file')
     images[0].save(
         print_dir + '/out.pdf', "PDF", resolution=100.0, save_all=True, append_images=images[1:]
     )
