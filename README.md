@@ -20,7 +20,7 @@ Change code in grapheme to point to bin:
 
 ## Pyinstaller
 ```shell
-pyinstaller -i icon.ico -c --onefile main.py
+ pyinstaller -i icon.ico --onefile  --add-data "venv/Lib/site-packages/grapheme/data/grapheme_break_property.json;grapheme/data" ./main.py
 ```
 
 ## Spec file:
