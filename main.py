@@ -1,6 +1,7 @@
 from alive_progress import alive_bar
 import datetime, requests, re, shutil, PIL, os, yaml, logging
-from pdf2image import convert_from_path
+from PIL import Image
+import fitz
 
 CONFIG_FILE = 'config.yaml'
 with open(CONFIG_FILE, "r") as stream:
@@ -89,12 +90,16 @@ def pull_pdfs_starting(day):
     with alive_bar(len(file_names)) as bar:
         for i in file_names:
             logging.debug('Convert PDF to image')
-            pages = convert_from_path(i[0], 500, size = (2038, 3426))
-            out = pages[10].crop((1026, 302, 1950, 1888))
+            pages = fitz.open(i[0])#convert_from_path(i[0], 500, size = (2038, 3426))
+            pixmap = pages[10].get_pixmap()
+            out = Image.frombytes('RGB', [pixmap.width, pixmap.height], pixmap.samples)
+            out = out.resize((2038, 3426))
+            out = out.crop((1026, 302, 1950, 1888))
             out = out.resize((1445, 2480), PIL.Image.ANTIALIAS)
             bar()
             images.append(out)
             write_last_day(i[1])
+            pages.close()
     # imagelist is the list with all image filenames
     logging.info('Creating one PDF file')
     images[0].save(
