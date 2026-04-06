@@ -1,11 +1,7 @@
 from alive_progress import alive_bar
-import datetime, cloudscraper, re, shutil, PIL, os, yaml, logging
+import datetime, requests, re, shutil, PIL, os, yaml, logging
 from PIL import Image
-try:
-    import fitz  # PyMuPDF
-except ImportError:
-    print("PyMuPDF not found. Install with: pip install PyMuPDF")
-    raise
+import fitz
 
 CONFIG_FILE = 'config.yaml'
 with open(CONFIG_FILE, "r") as stream:
@@ -13,25 +9,14 @@ with open(CONFIG_FILE, "r") as stream:
         cfg = yaml.safe_load(stream)
     except yaml.YAMLError as exc:
         print(exc)
-
 level = logging.INFO
 if 'verbose' in cfg:
     level = logging.DEBUG
 logging.basicConfig(level=level)
-
-# Suppress PIL debug messages
-logging.getLogger('PIL').setLevel(logging.WARNING)
-logging.getLogger('urllib3').setLevel(logging.WARNING)
-
 LAST_DATE_KEY = 'last-date'
 DATE_FORMAT = '%Y/%m/%d'
 MAX_COUNT = cfg['max-count']
-TARGET_PAGE = cfg['target-page']
 os.environ["PATH"] = os.environ["PATH"] + ";./bin"
-
-# Initialize cloudscraper session
-scraper = cloudscraper.create_scraper()
-
 def clean(pdf_list):
     for i in pdf_list:
         os.remove(i[0])
@@ -57,10 +42,10 @@ def write_last_day(date):
 
 def download_file(url):
     local_filename = url.split('/')[-1]
-    with scraper.get(url, stream=True) as r:
-        r.raise_for_status()  # Raise an exception for bad status codes
+    with requests.get(url, stream=True) as r:
         with open(local_filename, 'wb') as f:
             shutil.copyfileobj(r.raw, f)
+
     return local_filename
 
 def pull_pdfs_starting(day):
@@ -80,68 +65,46 @@ def pull_pdfs_starting(day):
             today_str = current_index.strftime(DATE_FORMAT)
             url = "https://addiyar.com/pdf/"+today_str
             logging.debug('Fetching: ' + str(url))
-            try:
-                response = scraper.get(url)
-                response.raise_for_status()  # Raise an exception for bad status codes
-                text = response.text
-            except Exception as e:
-                logging.error(f'Failed to fetch {url}: {str(e)}')
-                i += 1
-                current_index = day_date_obj + datetime.timedelta(days=i)
-                bar()
-                continue
-
+            text = requests.get(url).text
             try:
                 logging.debug('Searching for pdf in HTML')
                 pdf_link = re.search("(?P<url>https?://[^\s]+.pdf)", text).group("url")
                 pdf_links.append([pdf_link, today_str])
-            except Exception as e:
-                logging.warning('No pdf found in link: ' + url + ', is it a weekend day?')
+            except:
+                logging.warn('No pdf found in link: ' + url + ', is it a weekend day?')
             i += 1
             current_index = day_date_obj + datetime.timedelta(days=i)
             bar()
-
+    logging.info("fetched this pdf links count: " + str(len(pdf_links)))
     logging.info("Downloading pdfs")
     file_names = []
     with alive_bar(len(pdf_links)) as bar:
         for i in pdf_links:
-            try:
-                file_names.append([download_file(i[0]), i[1]])
-            except Exception as e:
-                logging.error(f'Failed to download {i[0]}: {str(e)}')
+            file_names.append([download_file(i[0]), i[1]])
             bar()
-
     logging.info("Resizing, cropping, and extracting images from pdf files")
     today_str = today.strftime(DATE_FORMAT).replace('/', '-')
-    print_dir = create_print_dir(today_str)
+    print_dir=create_print_dir(today_str)
     images = []
 
     with alive_bar(len(file_names)) as bar:
         for i in file_names:
-            try:
-                logging.debug('Convert PDF to image')
-                pages = fitz.open(i[0])  # convert_from_path(i[0], 500, size = (2038, 3426))
-                pixmap = pages[TARGET_PAGE].get_pixmap()
-                out = Image.frombytes('RGB', [pixmap.width, pixmap.height], pixmap.samples)
-                out = out.resize((2038, 3426))
-                out = out.crop((1026, 302, 1950, 1888))
-                out = out.resize((1445, 2480), PIL.Image.LANCZOS)  # ANTIALIAS is deprecated
-                bar()
-                images.append(out)
-                write_last_day(i[1])
-                pages.close()
-            except Exception as e:
-                logging.error(f'Failed to process PDF {i[0]}: {str(e)}')
-                bar()
-
-    if images:
-        # imagelist is the list with all image filenames
-        logging.info('Creating one PDF file')
-        images[0].save(
-            print_dir + '/out.pdf', "PDF", resolution=100.0, save_all=True, append_images=images[1:]
-        )
-    else:
-        logging.warning('No images to save - no PDF created')
+            logging.debug('Convert PDF to image')
+            pages = fitz.open(i[0])#convert_from_path(i[0], 500, size = (2038, 3426))
+            pixmap = pages[10].get_pixmap()
+            out = Image.frombytes('RGB', [pixmap.width, pixmap.height], pixmap.samples)
+            out = out.resize((2038, 3426))
+            out = out.crop((1026, 302, 1950, 1888))
+            out = out.resize((1445, 2480), PIL.Image.ANTIALIAS)
+            bar()
+            images.append(out)
+            write_last_day(i[1])
+            pages.close()
+    # imagelist is the list with all image filenames
+    logging.info('Creating one PDF file')
+    images[0].save(
+        print_dir + '/out.pdf', "PDF", resolution=100.0, save_all=True, append_images=images[1:]
+    )
 
     clean(file_names)
     return True
