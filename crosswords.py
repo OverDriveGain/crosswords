@@ -2,20 +2,20 @@ import datetime
 import logging
 import os
 import re
-import shutil
 import tempfile
 from io import BytesIO
 from typing import Callable, Optional
 
-import cloudscraper
 import fitz
 import PIL
 from PIL import Image
+from curl_cffi import requests as cffi_requests
 
 log = logging.getLogger(__name__)
 DATE_FORMAT = "%Y/%m/%d"
 
-scraper = cloudscraper.create_scraper()
+# curl_cffi with chrome TLS fingerprint defeats addiyar's Cloudflare from datacenter IPs.
+scraper = cffi_requests.Session(impersonate="chrome")
 
 # progress_cb receives a dict: {phase, done, total, current}
 ProgressCb = Callable[[dict], None]
@@ -43,10 +43,10 @@ def _fetch_pdf_url(day_str: str) -> Optional[str]:
 
 def _download(url: str, path: str) -> bool:
     try:
-        with scraper.get(url, stream=True, timeout=60) as r:
-            r.raise_for_status()
-            with open(path, "wb") as f:
-                shutil.copyfileobj(r.raw, f)
+        r = scraper.get(url, timeout=60)
+        r.raise_for_status()
+        with open(path, "wb") as f:
+            f.write(r.content)
         return True
     except Exception as e:
         log.error("Download failed for %s: %s", url, e)
