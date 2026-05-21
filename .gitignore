@@ -120,6 +120,12 @@ ENV/
 env.bak/
 venv.bak/
 
+# Generated crossword outputs
+print-*/
+*.pdf
+out.pdf
+
+
 # Spyder project settings
 .spyderproject
 .spyproject

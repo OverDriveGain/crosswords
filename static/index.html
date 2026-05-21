@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crosswords — addiyar</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%235b8def'/%3E%3Ctext x='50%25' y='54%25' font-family='ui-sans-serif,system-ui' font-size='36' font-weight='700' fill='white' text-anchor='middle' dominant-baseline='middle'%3E%23%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>الكلمات المتقاطعة</h1>
+    <p class="sub">addiyar.com → one PDF</p>
+  </header>
+
+  <form id="f">
+    <label>From date
+      <span class="hint">YYYY/MM/DD — script will pull every weekday from here until today</span>
+      <input id="from_date" type="text" required pattern="\d{4}/\d{2}/\d{2}" inputmode="numeric" placeholder="2026/05/01">
+    </label>
+    <label>Max days
+      <span class="hint">cap on how many calendar days to scan</span>
+      <input id="max_count" type="number" min="1" max="500" required>
+    </label>
+    <label>Target page
+      <span class="hint">which page of the daily PDF holds the crossword</span>
+      <input id="target_page" type="number" min="0" max="50" required>
+    </label>
+    <div class="row">
+      <button type="submit" id="go">Fetch crosswords</button>
+      <button type="button" id="reset" class="ghost" title="Restore defaults from server">Reset</button>
+    </div>
+  </form>
+
+  <div id="status"></div>
+
+  <footer>
+    <span>Config is saved in this browser only.</span>
+  </footer>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>

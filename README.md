@@ -1,32 +1,34 @@
-# Compiling in windows:
-## Tools:
-Pyinstaller for creating binary
-## Commands:
-In windows python should be installed, verify project running:
-```
-python -m pip install -r req.txt
-python main.py
-```
-## Grapheme JSON file:
+# Crosswords
 
-```commandline
-copy C:\Users\Manar\AppData\Local\Programs\Python\Python310\Lib\site-packages\grapheme\data\grapheme_break_property.json
-Into ./bin file
+Single-page web service that scrapes the daily Arabic crossword from addiyar.com and returns a combined PDF.
+
+## Architecture
+- `main.py` — FastAPI app, serves the static UI from `/` and the API under `/api/*`
+- `crosswords.py` — fetch + crop + PDF assembly logic
+- `static/` — single-page UI; saves user config in browser localStorage
+- `config.yaml` — server-side defaults only (used the first time a browser loads the page)
+
+The server is stateless. Each request carries `from_date`, `max_count`, `target_page`. The response includes `X-Next-Date` so the UI auto-advances for the next run.
+
+## Run locally
+```bash
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
 ```
-Change code in grapheme to point to bin:
-```python
-("./bin/grapheme_break_property.json", 'r') as f:
+Then open http://localhost:8000.
+
+## Docker
+```bash
+docker build -t crosswords .
+docker run --rm -p 8000:8000 crosswords
 ```
 
-## Pyinstaller
-```shell
- pyinstaller -i icon.ico --onefile  --add-data "venv/Lib/site-packages/grapheme/data/grapheme_break_property.json;grapheme/data" ./main.py
-```
+CI builds and pushes to `ghcr.io/overdrivegain/crosswords` on every push to `master`.
 
-## Spec file:
-is not used
-
-## Usage:
-1. Unzip file
-2. In text file "last-date.txt" insert last date printed, using same format in file.
-3. Run main.exe, and all crosswords will be stored in folder with name print, and date.
+## Endpoints
+- `GET /` — UI
+- `GET /api/health` — `{"ok": true}`
+- `GET /api/defaults` — defaults from `config.yaml`
+- `POST /api/run` — body `{from_date, max_count, target_page}`, returns the combined PDF
+- `GET /api/docs` — OpenAPI / Swagger UI

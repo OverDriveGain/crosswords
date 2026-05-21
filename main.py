@@ -1,150 +1,80 @@
-from alive_progress import alive_bar
-import datetime, cloudscraper, re, shutil, PIL, os, yaml, logging
-from PIL import Image
-try:
-    import fitz  # PyMuPDF
-except ImportError:
-    print("PyMuPDF not found. Install with: pip install PyMuPDF")
-    raise
+import datetime
+import logging
+from pathlib import Path
 
-CONFIG_FILE = 'config.yaml'
-with open(CONFIG_FILE, "r") as stream:
+import yaml
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from crosswords import DATE_FORMAT, build_crosswords_pdf
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logging.getLogger("PIL").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+ROOT = Path(__file__).parent
+app = FastAPI(title="Crosswords", docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
+
+
+def _load_defaults() -> dict:
+    with open(ROOT / "config.yaml") as f:
+        cfg = yaml.safe_load(f) or {}
+    return {
+        "from_date": cfg.get("last-date", "2026/01/01"),
+        "max_count": int(cfg.get("max-count", 100)),
+        "target_page": int(cfg.get("target-page", 6)),
+    }
+
+
+class RunRequest(BaseModel):
+    from_date: str = Field(pattern=r"^\d{4}/\d{2}/\d{2}$")
+    max_count: int = Field(ge=1, le=500)
+    target_page: int = Field(ge=0, le=50)
+
+
+@app.get("/api/health")
+def health():
+    return {"ok": True}
+
+
+@app.get("/api/defaults")
+def defaults():
+    return _load_defaults()
+
+
+@app.post("/api/run")
+def run(req: RunRequest):
     try:
-        cfg = yaml.safe_load(stream)
-    except yaml.YAMLError as exc:
-        print(exc)
+        datetime.datetime.strptime(req.from_date, DATE_FORMAT)
+    except ValueError:
+        raise HTTPException(400, "from_date must be YYYY/MM/DD")
 
-level = logging.INFO
-if 'verbose' in cfg:
-    level = logging.DEBUG
-logging.basicConfig(level=level)
+    pdf, processed = build_crosswords_pdf(
+        from_date=req.from_date,
+        max_count=req.max_count,
+        target_page=req.target_page,
+    )
+    if not pdf:
+        raise HTTPException(404, "No crosswords found in that range")
 
-# Suppress PIL debug messages
-logging.getLogger('PIL').setLevel(logging.WARNING)
-logging.getLogger('urllib3').setLevel(logging.WARNING)
+    next_date = (
+        datetime.datetime.strptime(processed[-1], DATE_FORMAT)
+        + datetime.timedelta(days=1)
+    ).strftime(DATE_FORMAT)
+    fname = f"crosswords-{processed[0].replace('/', '-')}_to_{processed[-1].replace('/', '-')}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{fname}"',
+            "Access-Control-Expose-Headers": "X-Processed-Count, X-First-Date, X-Last-Date, X-Next-Date",
+            "X-Processed-Count": str(len(processed)),
+            "X-First-Date": processed[0],
+            "X-Last-Date": processed[-1],
+            "X-Next-Date": next_date,
+        },
+    )
 
-LAST_DATE_KEY = 'last-date'
-DATE_FORMAT = '%Y/%m/%d'
-MAX_COUNT = cfg['max-count']
-TARGET_PAGE = cfg['target-page']
-os.environ["PATH"] = os.environ["PATH"] + ";./bin"
 
-# Initialize cloudscraper session
-scraper = cloudscraper.create_scraper()
-
-def clean(pdf_list):
-    for i in pdf_list:
-        os.remove(i[0])
-
-PRINT_DIR = 'print'
-def create_print_dir(date):
-    try:
-        out_dir = PRINT_DIR + '-' + date
-        os.makedirs(out_dir)
-    except FileExistsError:
-        # directory already exists
-        pass
-    return out_dir
-
-def read_last_day():
-    return cfg[LAST_DATE_KEY]
-
-def write_last_day(date):
-    cfg[LAST_DATE_KEY] = date
-    with open(CONFIG_FILE, 'w') as outfile:
-        yaml.dump(cfg, outfile)
-    return True
-
-def download_file(url):
-    local_filename = url.split('/')[-1]
-    with scraper.get(url, stream=True) as r:
-        r.raise_for_status()  # Raise an exception for bad status codes
-        with open(local_filename, 'wb') as f:
-            shutil.copyfileobj(r.raw, f)
-    return local_filename
-
-def pull_pdfs_starting(day):
-    """
-
-    :param day:
-    :type day: String
-    :return:
-    """
-    today = datetime.datetime.today()
-    day_date_obj = datetime.datetime.strptime(day, DATE_FORMAT)
-    current_index = day_date_obj
-    i = 0
-    pdf_links = []
-    with alive_bar(min((today - day_date_obj).days, MAX_COUNT)) as bar:
-        while current_index < today and i < MAX_COUNT:
-            today_str = current_index.strftime(DATE_FORMAT)
-            url = "https://addiyar.com/pdf/"+today_str
-            logging.debug('Fetching: ' + str(url))
-            try:
-                response = scraper.get(url)
-                response.raise_for_status()  # Raise an exception for bad status codes
-                text = response.text
-            except Exception as e:
-                logging.error(f'Failed to fetch {url}: {str(e)}')
-                i += 1
-                current_index = day_date_obj + datetime.timedelta(days=i)
-                bar()
-                continue
-
-            try:
-                logging.debug('Searching for pdf in HTML')
-                pdf_link = re.search("(?P<url>https?://[^\s]+.pdf)", text).group("url")
-                pdf_links.append([pdf_link, today_str])
-            except Exception as e:
-                logging.warning('No pdf found in link: ' + url + ', is it a weekend day?')
-            i += 1
-            current_index = day_date_obj + datetime.timedelta(days=i)
-            bar()
-
-    logging.info("Downloading pdfs")
-    file_names = []
-    with alive_bar(len(pdf_links)) as bar:
-        for i in pdf_links:
-            try:
-                file_names.append([download_file(i[0]), i[1]])
-            except Exception as e:
-                logging.error(f'Failed to download {i[0]}: {str(e)}')
-            bar()
-
-    logging.info("Resizing, cropping, and extracting images from pdf files")
-    today_str = today.strftime(DATE_FORMAT).replace('/', '-')
-    print_dir = create_print_dir(today_str)
-    images = []
-
-    with alive_bar(len(file_names)) as bar:
-        for i in file_names:
-            try:
-                logging.debug('Convert PDF to image')
-                pages = fitz.open(i[0])  # convert_from_path(i[0], 500, size = (2038, 3426))
-                pixmap = pages[TARGET_PAGE].get_pixmap()
-                out = Image.frombytes('RGB', [pixmap.width, pixmap.height], pixmap.samples)
-                out = out.resize((2038, 3426))
-                out = out.crop((1026, 302, 1950, 1888))
-                out = out.resize((1445, 2480), PIL.Image.LANCZOS)  # ANTIALIAS is deprecated
-                bar()
-                images.append(out)
-                write_last_day(i[1])
-                pages.close()
-            except Exception as e:
-                logging.error(f'Failed to process PDF {i[0]}: {str(e)}')
-                bar()
-
-    if images:
-        # imagelist is the list with all image filenames
-        logging.info('Creating one PDF file')
-        images[0].save(
-            print_dir + '/out.pdf', "PDF", resolution=100.0, save_all=True, append_images=images[1:]
-        )
-    else:
-        logging.warning('No images to save - no PDF created')
-
-    clean(file_names)
-    return True
-
-qwe = read_last_day()
-pull_pdfs_starting(read_last_day())
+app.mount("/", StaticFiles(directory=ROOT / "static", html=True), name="static")
