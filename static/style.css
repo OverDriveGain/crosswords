@@ -15,7 +15,12 @@ button:hover{filter:brightness(1.1)}
 button:disabled{opacity:.5;cursor:not-allowed;filter:none}
 button.ghost{flex:0 0 auto;background:transparent;color:#8c92a0;border:1px solid #2a2f3b}
 button.ghost:hover{color:#e6e7eb;border-color:#3a4150}
-#status{margin-top:18px;font-size:14px;color:#aab0bd;min-height:1.5em;white-space:pre-wrap}
+#progress{margin-top:18px;display:grid;gap:8px}
+#progress[hidden]{display:none}
+.bar{height:8px;background:#0e1015;border:1px solid #232732;border-radius:4px;overflow:hidden}
+#bar-fill{height:100%;width:0%;background:linear-gradient(90deg,#5b8def,#7ea8ff);transition:width .25s ease}
+#progress-text{font-size:13px;color:#aab0bd;font-variant-numeric:tabular-nums}
+#status{margin-top:14px;font-size:14px;color:#aab0bd;min-height:1.5em;white-space:pre-wrap}
 #status.ok{color:#5fdba7}
 #status.err{color:#ef6a6a}
 #status.busy{color:#e6c45f}

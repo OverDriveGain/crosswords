@@ -20,8 +20,8 @@
       <input id="from_date" type="text" required pattern="\d{4}/\d{2}/\d{2}" inputmode="numeric" placeholder="2026/05/01">
     </label>
     <label>Max days
-      <span class="hint">cap on how many calendar days to scan</span>
-      <input id="max_count" type="number" min="1" max="500" required>
+      <span class="hint">how many calendar days to scan (max 15)</span>
+      <input id="max_count" type="number" min="1" max="15" required>
     </label>
     <label>Target page
       <span class="hint">which page of the daily PDF holds the crossword</span>
@@ -32,6 +32,11 @@
       <button type="button" id="reset" class="ghost" title="Restore defaults from server">Reset</button>
     </div>
   </form>
+
+  <div id="progress" hidden>
+    <div class="bar"><div id="bar-fill"></div></div>
+    <div id="progress-text"></div>
+  </div>
 
   <div id="status"></div>
 
